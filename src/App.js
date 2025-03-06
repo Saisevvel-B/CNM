@@ -1,25 +1,644 @@
-import logo from './logo.svg';
-import './App.css';
+import { useState, useEffect, useMemo } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, Circle } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import "./index.css";
 
-function App() {
+// Enhanced category icons with better styling
+const categoryIcons = {
+  Food: new L.DivIcon({ 
+    className: "custom-pin food-pin", 
+    html: "<div class='pin-icon'>🍽️</div><div class='pin-shadow'></div>", 
+    iconSize: [40, 40], 
+    iconAnchor: [20, 40] 
+  }),
+  Transport: new L.DivIcon({ 
+    className: "custom-pin transport-pin", 
+    html: "<div class='pin-icon'>🚌</div><div class='pin-shadow'></div>", 
+    iconSize: [40, 40], 
+    iconAnchor: [20, 40] 
+  }),
+  Medical: new L.DivIcon({ 
+    className: "custom-pin medical-pin", 
+    html: "<div class='pin-icon'>🏥</div><div class='pin-shadow'></div>", 
+    iconSize: [40, 40], 
+    iconAnchor: [20, 40] 
+  }),
+  Snacks: new L.DivIcon({ 
+    className: "custom-pin snacks-pin", 
+    html: "<div class='pin-icon'>🍿</div><div class='pin-shadow'></div>", 
+    iconSize: [40, 40], 
+    iconAnchor: [20, 40] 
+  }),
+  Bakery: new L.DivIcon({ 
+    className: "custom-pin bakery-pin", 
+    html: "<div class='pin-icon'>🥖</div><div class='pin-shadow'></div>", 
+    iconSize: [40, 40], 
+    iconAnchor: [20, 40] 
+  }),
+  Clothing: new L.DivIcon({ 
+    className: "custom-pin clothing-pin", 
+    html: "<div class='pin-icon'>👕</div><div class='pin-shadow'></div>", 
+    iconSize: [40, 40], 
+    iconAnchor: [20, 40] 
+  }),
+  Education: new L.DivIcon({ 
+    className: "custom-pin education-pin", 
+    html: "<div class='pin-icon'>📚</div><div class='pin-shadow'></div>", 
+    iconSize: [40, 40], 
+    iconAnchor: [20, 40] 
+  }),
+  Other: new L.DivIcon({ 
+    className: "custom-pin other-pin", 
+    html: "<div class='pin-icon'>📍</div><div class='pin-shadow'></div>", 
+    iconSize: [40, 40], 
+    iconAnchor: [20, 40] 
+  })
+};
+
+// Color mapping for categories (used for UI elements)
+const categoryColors = {
+  Food: "#e74c3c",
+  Transport: "#3498db",
+  Medical: "#2ecc71",
+  Snacks: "#f39c12",
+  Bakery: "#9b59b6",
+  Clothing: "#e67e22",
+  Education: "#1abc9c",
+  Other: "#95a5a6"
+};
+
+export default function App() {
+  const [pins, setPins] = useState(() => {
+    const savedPins = localStorage.getItem('communityPins');
+    return savedPins ? JSON.parse(savedPins) : [];
+  });
+  const [newPin, setNewPin] = useState(null);
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("Food");
+  const [userLocation, setUserLocation] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [mapCenter, setMapCenter] = useState([51.505, -0.09]);
+  const [upvotes, setUpvotes] = useState(() => {
+    const savedUpvotes = localStorage.getItem('communityUpvotes');
+    return savedUpvotes ? JSON.parse(savedUpvotes) : {};
+  });
+  const [comments, setComments] = useState(() => {
+    const savedComments = localStorage.getItem('communityComments');
+    return savedComments ? JSON.parse(savedComments) : {};
+  });
+  const [userComment, setUserComment] = useState("");
+  const [activeFilters, setActiveFilters] = useState([]);
+  const [viewMode, setViewMode] = useState("map"); // "map" or "list"
+  const [sortOption, setSortOption] = useState("newest");
+  const [isLoading, setIsLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('communityPins', JSON.stringify(pins));
+    localStorage.setItem('communityUpvotes', JSON.stringify(upvotes));
+    localStorage.setItem('communityComments', JSON.stringify(comments));
+  }, [pins, upvotes, comments]);
+
+  // Get user's location on initial load
+  useEffect(() => {
+    setIsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location = [position.coords.latitude, position.coords.longitude];
+        setUserLocation(location);
+        setMapCenter(location);
+        setIsLoading(false);
+      },
+      () => {
+        console.error("Unable to retrieve location");
+        setIsLoading(false);
+      }
+    );
+  }, []);
+
+  // Filter pins based on active category filters
+  const filteredPins = useMemo(() => {
+    if (activeFilters.length === 0) return pins;
+    return pins.filter(pin => activeFilters.includes(pin.category));
+  }, [pins, activeFilters]);
+
+  // Sort pins based on selected sort option
+  const sortedPins = useMemo(() => {
+    switch (sortOption) {
+      case "newest":
+        return [...filteredPins].sort((a, b) => b.id - a.id);
+      case "oldest":
+        return [...filteredPins].sort((a, b) => a.id - b.id);
+      case "mostUpvoted":
+        return [...filteredPins].sort((a, b) => (upvotes[b.id] || 0) - (upvotes[a.id] || 0));
+      case "mostDiscussed":
+        return [...filteredPins].sort((a, b) => (comments[b.id]?.length || 0) - (comments[a.id]?.length || 0));
+      default:
+        return filteredPins;
+    }
+  }, [filteredPins, sortOption, upvotes, comments]);
+
+  function LocationMarker() {
+    useMapEvents({
+      click(e) {
+        setNewPin(e.latlng);
+      },
+    });
+    return newPin ? <Marker position={newPin} icon={categoryIcons[category]}><Popup>{description || "New Pin Location"}</Popup></Marker> : null;
+  }
+
+  function ChangeView({ center }) {
+    const map = useMap();
+    useEffect(() => {
+      if (center) {
+        map.setView(center, 14);
+      }
+    }, [center, map]);
+    return null;
+  }
+
+  const handleAddPin = () => {
+    if (newPin && description) {
+      const newEntry = { 
+        position: newPin, 
+        description, 
+        category, 
+        id: Date.now(),
+        timestamp: new Date().toLocaleString(),
+        createdBy: "You" // In a real app, this would be the user's name/ID
+      };
+      setPins([...pins, newEntry]);
+      setUpvotes({ ...upvotes, [newEntry.id]: 0 });
+      setComments({ ...comments, [newEntry.id]: [] });
+      setNewPin(null);
+      setDescription("");
+      
+      // Show success notification
+      showNotification("Pin added successfully!");
+    }
+  };
+
+  const handleUpvote = (id) => {
+    setUpvotes({ ...upvotes, [id]: (upvotes[id] || 0) + 1 });
+  };
+
+  const handleAddComment = (id) => {
+    if (userComment.trim()) {
+      setComments({ 
+        ...comments, 
+        [id]: [...(comments[id] || []), {
+          text: userComment.trim(),
+          author: "You", // In a real app, this would be the user's name
+          timestamp: new Date().toLocaleString()
+        }]
+      });
+      setUserComment("");
+    }
+  };
+
+  const handleSearchLocation = async () => {
+    if (!searchTerm) return;
+    setIsLoading(true);
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${searchTerm}`);
+      const data = await response.json();
+      if (data.length > 0) {
+        const newCenter = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+        setMapCenter(newCenter);
+      } else {
+        showNotification("Location not found", "error");
+      }
+    } catch (error) {
+      console.error("Error fetching location data", error);
+      showNotification("Error searching location", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFilterToggle = (category) => {
+    setActiveFilters(prevFilters => {
+      if (prevFilters.includes(category)) {
+        return prevFilters.filter(c => c !== category);
+      } else {
+        return [...prevFilters, category];
+      }
+    });
+  };
+
+  const handleDeletePin = (id) => {
+    if (window.confirm("Are you sure you want to delete this pin?")) {
+      setPins(pins.filter(pin => pin.id !== id));
+      
+      // Also clean up associated data
+      const newUpvotes = { ...upvotes };
+      delete newUpvotes[id];
+      setUpvotes(newUpvotes);
+      
+      const newComments = { ...comments };
+      delete newComments[id];
+      setComments(newComments);
+      
+      showNotification("Pin deleted successfully");
+    }
+  };
+
+  // Simple notification system (would be better with a proper toast library)
+  const showNotification = (message, type = "success") => {
+    const notification = document.createElement("div");
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.classList.add("show");
+    }, 10);
+    
+    setTimeout(() => {
+      notification.classList.remove("show");
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 300);
+    }, 3000);
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
+    <div className="app-container">
+      {isLoading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner"></div>
+          <p>Loading...</p>
+        </div>
+      )}
+      
+      <div className="app-header">
+        <div className="logo">
+          <span className="logo-icon">🗺️</span>
+          <h1>Community Needs Map</h1>
+        </div>
+        <div className="view-toggle">
+          <button 
+            className={`toggle-btn ${viewMode === "map" ? "active" : ""}`}
+            onClick={() => setViewMode("map")}
+          >
+            🗺️ Map View
+          </button>
+          <button 
+            className={`toggle-btn ${viewMode === "list" ? "active" : ""}`}
+            onClick={() => setViewMode("list")}
+          >
+            📋 List View
+          </button>
+        </div>
+        <button 
+          className="sidebar-toggle" 
+          onClick={() => setSidebarOpen(!sidebarOpen)}
         >
-          Learn React
-        </a>
-      </header>
+          {sidebarOpen ? "👈 Hide" : "👉 Menu"}
+        </button>
+      </div>
+
+      <div className="app-content">
+        <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
+          <div className="form-section">
+            <h2>📍 Add a Missing Service</h2>
+            <div className="search-container">
+              <input
+                type="text"
+                placeholder="Search for a place..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-bar"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSearchLocation();
+                }}
+              />
+              <button onClick={handleSearchLocation} className="search-btn">🔍</button>
+            </div>
+            
+            <button 
+              onClick={() => userLocation && setMapCenter(userLocation)} 
+              className="location-btn"
+              disabled={!userLocation}
+            >
+              📍 Go to My Location
+            </button>
+            
+            <button 
+              onClick={() => userLocation && setNewPin(userLocation)} 
+              className="pin-current-btn"
+              disabled={!userLocation}
+            >
+              📌 Pin My Current Location
+            </button>
+            
+            {newPin && (
+              <div className="new-pin-form">
+                <h3>New Pin Details</h3>
+                <input
+                  type="text"
+                  placeholder="Describe the missing service"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="input-field"
+                />
+                <select 
+                  value={category} 
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="category-select"
+                  style={{ borderColor: categoryColors[category] }}
+                >
+                  {Object.keys(categoryIcons).map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <button 
+                  onClick={handleAddPin} 
+                  className="add-pin-btn"
+                  disabled={!description}
+                >
+                  ✅ Add Need
+                </button>
+                <button 
+                  onClick={() => setNewPin(null)} 
+                  className="cancel-btn"
+                >
+                  ❌ Cancel
+                </button>
+              </div>
+            )}
+            
+            <div className="filters-section">
+              <h3>Filter by Category</h3>
+              <div className="filter-options">
+                {Object.keys(categoryIcons).map(cat => (
+                  <button
+                    key={cat}
+                    className={`filter-btn ${activeFilters.includes(cat) ? "active" : ""}`}
+                    style={{ 
+                      backgroundColor: activeFilters.includes(cat) ? categoryColors[cat] : "#f0f0f0",
+                      color: activeFilters.includes(cat) ? "white" : "#333" 
+                    }}
+                    onClick={() => handleFilterToggle(cat)}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="sort-section">
+              <h3>Sort Pins</h3>
+              <select 
+                value={sortOption} 
+                onChange={(e) => setSortOption(e.target.value)}
+                className="sort-select"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="mostUpvoted">Most Upvoted</option>
+                <option value="mostDiscussed">Most Discussed</option>
+              </select>
+            </div>
+            
+            <div className="stats-section">
+              <h3>Community Stats</h3>
+              <div className="stats-grid">
+                <div className="stat-item">
+                  <span className="stat-value">{pins.length}</span>
+                  <span className="stat-label">Total Pins</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">
+                    {Object.values(upvotes).reduce((sum, val) => sum + val, 0)}
+                  </span>
+                  <span className="stat-label">Total Upvotes</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">
+                    {Object.values(comments).reduce((sum, arr) => sum + arr.length, 0)}
+                  </span>
+                  <span className="stat-label">Total Comments</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="main-content">
+          {viewMode === "map" ? (
+            <div className="map-section">
+              <MapContainer center={mapCenter} zoom={14} className="map-container">
+                <ChangeView center={mapCenter} />
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                
+                {userLocation && (
+                  <>
+                    <Marker 
+                      position={userLocation} 
+                      icon={new L.DivIcon({ 
+                        className: "user-location-marker", 
+                        html: "<div class='pulse'></div><div class='user-dot'></div>", 
+                        iconSize: [20, 20], 
+                        iconAnchor: [10, 10] 
+                      })}
+                    >
+                      <Popup>You are here</Popup>
+                    </Marker>
+                    <Circle 
+                      center={userLocation} 
+                      radius={500} 
+                      pathOptions={{ color: '#4a69dd', fillColor: '#4a69dd', fillOpacity: 0.1 }} 
+                    />
+                  </>
+                )}
+                
+                <LocationMarker />
+                
+                {sortedPins.map((pin) => (
+                  <Marker key={pin.id} position={pin.position} icon={categoryIcons[pin.category]}>
+                    <Popup className="enhanced-popup">
+                      <div className="popup-header" style={{ backgroundColor: categoryColors[pin.category] }}>
+                        <span className="popup-category">{pin.category}</span>
+                        <div className="popup-actions">
+                          <button className="upvote-btn" onClick={() => handleUpvote(pin.id)}>
+                            👍 {upvotes[pin.id] || 0}
+                          </button>
+                          <button className="delete-btn" onClick={() => handleDeletePin(pin.id)}>🗑️</button>
+                        </div>
+                      </div>
+                      
+                      <div className="popup-content">
+                        <h3>{pin.description}</h3>
+                        <div className="popup-meta">
+                          <span>Added by: {pin.createdBy}</span>
+                          <span>Added: {pin.timestamp}</span>
+                        </div>
+                        
+                        <div className="popup-comments">
+                          <h4>Comments ({(comments[pin.id] || []).length})</h4>
+                          {(comments[pin.id] || []).length > 0 ? (
+                            <ul className="comments-list">
+                              {(comments[pin.id] || []).map((comment, i) => (
+                                <li key={i} className="comment-item">
+                                  <div className="comment-header">
+                                    <span className="comment-author">{comment.author || "Anonymous"}</span>
+                                    <span className="comment-time">{comment.timestamp || "Unknown time"}</span>
+                                  </div>
+                                  <div className="comment-text">{comment.text || comment}</div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="no-comments">No comments yet</p>
+                          )}
+                          
+                          <div className="add-comment">
+                            <input 
+                              type="text" 
+                              placeholder="Add a comment..." 
+                              value={userComment}
+                              onChange={(e) => setUserComment(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleAddComment(pin.id);
+                              }} 
+                            />
+                            <button onClick={() => handleAddComment(pin.id)}>💬</button>
+                          </div>
+                        </div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+              
+              <div className="map-legend">
+                <h3>Map Legend</h3>
+                <div className="legend-items">
+                  {Object.entries(categoryIcons).map(([cat, _]) => (
+                    <div key={cat} className="legend-item">
+                      <span className="legend-icon" style={{ backgroundColor: categoryColors[cat] }}>
+                        {categoryIcons[cat].options.html.match(/\p{Emoji}/u)[0]}
+                      </span>
+                      <span className="legend-label">{cat}</span>
+                    </div>
+                  ))}
+                  <div className="legend-item">
+                    <span className="legend-icon user-location">
+                      <div className="user-dot"></div>
+                    </span>
+                    <span className="legend-label">Your Location</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="list-view">
+              <h2>Community Needs List</h2>
+              {sortedPins.length > 0 ? (
+                <div className="pins-list">
+                  {sortedPins.map(pin => (
+                    <div 
+                      key={pin.id} 
+                      className="pin-card"
+                      style={{ borderLeft: `4px solid ${categoryColors[pin.category]}` }}
+                    >
+                      <div className="pin-card-header">
+                        <div className="pin-card-title">
+                          <span className="pin-icon" style={{ backgroundColor: categoryColors[pin.category] }}>
+                            {categoryIcons[pin.category].options.html.match(/\p{Emoji}/u)[0]}
+                          </span>
+                          <h3>{pin.description}</h3>
+                        </div>
+                        <div className="pin-card-actions">
+                          <button className="upvote-btn" onClick={() => handleUpvote(pin.id)}>
+                            👍 {upvotes[pin.id] || 0}
+                          </button>
+                          <button 
+                            className="center-btn" 
+                            onClick={() => {
+                              setMapCenter([pin.position.lat, pin.position.lng]);
+                              setViewMode("map");
+                            }}
+                          >
+                            🎯
+                          </button>
+                          <button className="delete-btn" onClick={() => handleDeletePin(pin.id)}>🗑️</button>
+                        </div>
+                      </div>
+                      
+                      <div className="pin-card-meta">
+                        <span className="pin-category">{pin.category}</span>
+                        <span className="pin-location">
+                          Lat: {pin.position.lat.toFixed(5)}, Lng: {pin.position.lng.toFixed(5)}
+                        </span>
+                        <span className="pin-added">Added: {pin.timestamp}</span>
+                      </div>
+                      
+                      <div className="pin-card-comments">
+                        <h4>
+                          Comments ({(comments[pin.id] || []).length})
+                          <button 
+                            className="toggle-comments-btn"
+                            onClick={(e) => {
+                              e.currentTarget.closest('.pin-card').querySelector('.comments-container').classList.toggle('expanded');
+                            }}
+                          >
+                            ▼
+                          </button>
+                        </h4>
+                        
+                        <div className="comments-container">
+                          {(comments[pin.id] || []).length > 0 ? (
+                            <ul className="comments-list">
+                              {(comments[pin.id] || []).map((comment, i) => (
+                                <li key={i} className="comment-item">
+                                  <div className="comment-header">
+                                    <span className="comment-author">{comment.author || "Anonymous"}</span>
+                                    <span className="comment-time">{comment.timestamp || "Unknown time"}</span>
+                                  </div>
+                                  <div className="comment-text">{comment.text || comment}</div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="no-comments">No comments yet</p>
+                          )}
+                          
+                          <div className="add-comment">
+                            <input 
+                              type="text" 
+                              placeholder="Add a comment..." 
+                              value={userComment}
+                              onChange={(e) => setUserComment(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleAddComment(pin.id);
+                              }} 
+                            />
+                            <button onClick={() => handleAddComment(pin.id)}>💬</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon">📍</div>
+                  <h3>No pins found</h3>
+                  <p>
+                    {activeFilters.length > 0 
+                      ? "Try changing your filter settings or add new pins." 
+                      : "Click on the map to add your first pin!"}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
-
-export default App;
