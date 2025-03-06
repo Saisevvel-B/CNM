@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/Saisevvel-B/CNM.git/static/css/main.c5594b85.css",
+    "main.js": "/Saisevvel-B/CNM.git/static/js/main.84272336.js",
+    "static/js/453.07467d59.chunk.js": "/Saisevvel-B/CNM.git/static/js/453.07467d59.chunk.js",
+    "index.html": "/Saisevvel-B/CNM.git/index.html",
+    "main.c5594b85.css.map": "/Saisevvel-B/CNM.git/static/css/main.c5594b85.css.map",
+    "main.84272336.js.map": "/Saisevvel-B/CNM.git/static/js/main.84272336.js.map",
+    "453.07467d59.chunk.js.map": "/Saisevvel-B/CNM.git/static/js/453.07467d59.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.c5594b85.css",
+    "static/js/main.84272336.js"
+  ]
+}
