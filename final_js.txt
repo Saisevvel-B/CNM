@@ -84,67 +84,6 @@ function DistanceInfo({ distance, isVisible, onClose }) {
   );
 }
 
-// PinSearch Component
-function PinSearch({ pins, onSelectPin, searchTerm, setSearchTerm }) {
-  const [results, setResults] = useState([]);
-  const [showResults, setShowResults] = useState(false);
-  
-  useEffect(() => {
-    if (searchTerm.length >= 2) {
-      const filtered = pins.filter(pin => 
-        pin.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pin.category.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setResults(filtered);
-      setShowResults(true);
-    } else {
-      setResults([]);
-      setShowResults(false);
-    }
-  }, [searchTerm, pins]);
-  
-  const handlePinSelect = (pin) => {
-    onSelectPin(pin);
-    setShowResults(false);
-    setSearchTerm('');
-  };
-  
-  return (
-    <div className="pin-search">
-      <div className="pin-search-container">
-        <input
-          type="text"
-          className="pin-search-input"
-          placeholder="Search for pins..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onFocus={() => searchTerm.length >= 2 && setShowResults(true)}
-        />
-        <button className="pin-search-btn" onClick={() => setShowResults(searchTerm.length >= 2)}>🔍</button>
-        
-        <div className={`pin-search-results ${showResults && results.length > 0 ? 'show' : ''}`}>
-          {results.map(pin => (
-            <div 
-              key={pin.id} 
-              className="pin-search-result-item" 
-              onClick={() => handlePinSelect(pin)}
-            >
-              <div className="pin-search-result-title">{pin.description}</div>
-              <div className="pin-search-result-meta">
-                <span className="pin-search-result-category">{pin.category}</span>
-                <span className="pin-search-result-date">{pin.timestamp}</span>
-              </div>
-            </div>
-          ))}
-          {showResults && results.length === 0 && (
-            <div className="pin-search-result-item">No results found</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Main App Component
 export default function App() {
   const [pins, setPins] = useState(() => {
@@ -175,7 +114,6 @@ export default function App() {
   const [distance, setDistance] = useState(null); // For storing distance
   const [destinationPin, setDestinationPin] = useState(null); // For storing selected destination pin
   const [showDistanceInfo, setShowDistanceInfo] = useState(false);
-  const [pinSearchTerm, setPinSearchTerm] = useState("");
   const mapRef = useRef(null);
 
   // Save data to localStorage whenever it changes
@@ -671,7 +609,7 @@ export default function App() {
                   <Polyline
                     positions={route}
                     color="#4a69dd"
-                    weight={2} // Thin polyline
+                    weight={5} // Thicker polyline
                     opacity={0.7}
                   />
                 )}
@@ -697,20 +635,11 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Add DistanceInfo and PinSearch components here */}
+              {/* Add DistanceInfo component here */}
               <DistanceInfo 
                 distance={distance}
                 isVisible={showDistanceInfo && distance}
                 onClose={() => setShowDistanceInfo(false)}
-              />
-              <PinSearch 
-                pins={pins}
-                onSelectPin={(pin) => {
-                  setMapCenter([pin.position.lat, pin.position.lng]);
-                  handleDestinationSelect(pin);
-                }}
-                searchTerm={pinSearchTerm}
-                setSearchTerm={setPinSearchTerm}
               />
             </div>
           ) : (
@@ -751,7 +680,9 @@ export default function App() {
                       <div className="pin-card-meta">
                         <span className="pin-category">{pin.category}</span>
                         <span className="pin-location">
-                          Lat: {pin.position.lat.toFixed(5)}, Lng: {pin.position.lng.toFixed(5)}
+                          {pin.position?.lat != null && pin.position?.lng != null
+                            ? `Lat: ${Number(pin.position.lat).toFixed(5)}, Lng: ${Number(pin.position.lng).toFixed(5)}`
+                            : "Location not available"}
                         </span>
                         <span className="pin-added">Added: {pin.timestamp}</span>
                       </div>

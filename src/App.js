@@ -680,7 +680,9 @@ export default function App() {
                       <div className="pin-card-meta">
                         <span className="pin-category">{pin.category}</span>
                         <span className="pin-location">
-                          Lat: {pin.position.lat.toFixed(5)}, Lng: {pin.position.lng.toFixed(5)}
+                          {pin.position?.lat != null && pin.position?.lng != null
+                            ? `Lat: ${Number(pin.position.lat).toFixed(5)}, Lng: ${Number(pin.position.lng).toFixed(5)}`
+                            : "Location not available"}
                         </span>
                         <span className="pin-added">Added: {pin.timestamp}</span>
                       </div>
