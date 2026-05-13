@@ -403,21 +403,21 @@ export default function App() {
   const handleAddPin = async () => {
     if (!newPin || !description) return;
 
-    // Check 5-pin limit for this user
-    const { count, error: countError } = await supabase
-      .from("pins")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId);
+    // // Check 5-pin limit for this user
+    // const { count, error: countError } = await supabase
+    //   .from("pins")
+    //   .select("*", { count: "exact", head: true })
+    //   .eq("user_id", userId);
 
-    if (countError) {
-      showNotification("Error checking pin limit", "error");
-      return;
-    }
+    // if (countError) {
+    //   showNotification("Error checking pin limit", "error");
+    //   return;
+    // }
 
-    if (count >= 5) {
-      showNotification("You've reached the 5-pin limit!", "error");
-      return;
-    }
+    // if (count >= 5) {
+    //   showNotification("You've reached the 5-pin limit!", "error");
+    //   return;
+    // }
 
     const { data, error } = await supabase
       .from("pins")
